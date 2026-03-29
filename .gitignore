@@ -8,3 +8,14 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Data files to prevent PII leak
+*.xls
+*.xlsx
+*.csv
+
+# Temporary files
+projeto.odt
+content_text.txt
+content.xml
+read_odt.py
