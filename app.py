@@ -5,7 +5,7 @@ from etl_processor import (
     remover_duplicidades, etl_turmas, etl_diarios, 
     cruzar_diarios_servidores, df_to_excel_bytes
 )
-from pdf_generator import gerar_pdf_resumo
+from pdf_generator import gerar_pdf_resumo, gerar_pdf_comparativo
 
 def load_data(file):
     if file.name.lower().endswith('.csv'):
@@ -125,17 +125,16 @@ if st.button("Processar Dados", width='stretch'):
                 # Flow 8: Professores
                 df_professores_final = cruzar_diarios_servidores(df_diarios_final, df_servidores_raw, df_edu_raw)
                 
-                # Store the results in session state so they don't disappear on button click
-                st.session_state['processed_data'] = {
-                    'dup_antes': df_dup_antes,
-                    'alunos_limpo': df_alunos_limpo,
-                    'dup_apos': df_dup_apos,
-                    'matriculas': df_matriculas_final,
-                    'turmas': df_turmas_final,
-                    'diarios': df_diarios_final,
-                    'professores': df_professores_final,
-                    'escolas_raw': df_escolas_raw
+                # Convert all DFs to strictly Bytes during the loading spin to avoid Streamlit timeout on download click
+                st.session_state['processed_bytes'] = {
+                    'dup_antes': df_to_excel_bytes(df_dup_antes),
+                    'dup_apos': df_to_excel_bytes(df_dup_apos),
+                    'matriculas': df_to_excel_bytes(df_matriculas_final),
+                    'turmas': df_to_excel_bytes(df_turmas_final),
+                    'professores': df_to_excel_bytes(df_professores_final),
                 }
+                st.session_state['pdf_bytes'] = gerar_pdf_resumo(df_matriculas_final, df_turmas_final, df_professores_final, df_escolas_raw)
+                st.session_state['pdf_comparativo_bytes'] = gerar_pdf_comparativo(df_turmas_final, df_alunos_limpo, df_matriculas_final, df_dup_apos)
                 st.session_state['processed_success'] = True
 
             except Exception as e:
@@ -147,35 +146,39 @@ if st.session_state.get('processed_success', False):
     st.markdown("---")
     st.subheader("Download dos Arquivos Processados")
     
-    data = st.session_state['processed_data']
-    
-    # Resumo Analítico isolado no topo
-    try:
-        pdf_bytes = gerar_pdf_resumo(data['matriculas'], data['turmas'], data['professores'], data.get('escolas_raw'))
-        st.download_button("Baixar Resumo Analítico (PDF)", data=pdf_bytes, file_name="Resumo_Analitico_EDUTEN.pdf", mime="application/pdf", width='stretch')
-    except Exception as e:
-        st.warning(f"Não foi possível gerar o PDF de resumo: {e}")
+    col_pdf1, col_pdf2 = st.columns(2)
+    with col_pdf1:
+        try:
+            st.download_button("Baixar Resumo Analítico", data=st.session_state['pdf_bytes'], file_name="Resumo_Analitico_EDUTEN.pdf", mime="application/pdf", width='stretch')
+        except Exception as e:
+            st.warning(f"Não foi possível gerar o PDF de resumo: {e}")
+            
+    with col_pdf2:
+        try:
+            st.download_button("Baixar Relatório de Divergências por Duplicidades", data=st.session_state['pdf_comparativo_bytes'], file_name="Comparativo_Matriculas_EDUTEN.pdf", mime="application/pdf", width='stretch')
+        except Exception as e:
+            st.warning(f"Não foi possível gerar o PDF comparativo: {e}")
         
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Organização baseada no fluxo (imagem 2)
     c1, c2, c3 = st.columns(3)
     
+    byte_dict = st.session_state['processed_bytes']
+    
     with c1:
-        st.markdown("**Tratamento de Duplicidades (ETL)**")
-        st.download_button("Duplicidades Antes ETL", data=df_to_excel_bytes(data['dup_antes']), file_name="duplicidades_antes_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.download_button("Duplicidades Após ETL", data=df_to_excel_bytes(data['dup_apos']), file_name="duplicidades_apos_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.markdown("**Arquivos de Envio ao Eduten**")
+        st.download_button("Relação Final de Matrículas", data=byte_dict['matriculas'], file_name="matriculas_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Relação Final de Professores", data=byte_dict['professores'], file_name="professores_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         
     with c2:
-        st.markdown("**Arquivos de Envio ao EDUTEN**")
-        st.download_button("Relação Final de Matrículas", data=df_to_excel_bytes(data['matriculas']), file_name="matriculas_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.download_button("Professores Participantes", data=df_to_excel_bytes(data['professores']), file_name="professores_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.markdown("**Tratamento de Duplicidades**")
+        st.download_button("Duplicidades Geral", data=byte_dict['dup_antes'], file_name="duplicidades_antes_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Duplicidades participantes do Eduten", data=byte_dict['dup_apos'], file_name="duplicidades_apos_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         
     with c3:
         st.markdown("**Materiais de Validação**")
-        st.download_button("Turmas para Conferência dos Dados", data=df_to_excel_bytes(data['turmas']), file_name="turmas_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.download_button("Arquivos de Diários", data=df_to_excel_bytes(data['diarios']), file_name="diarios_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.download_button("Alunos Após ETL (Base Limpa)", data=df_to_excel_bytes(data['alunos_limpo']), file_name="alunos_apos_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Relação de Turmas para o Eduten", data=byte_dict['turmas'], file_name="turmas_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # Rodapé do Projeto
 st.markdown("---")

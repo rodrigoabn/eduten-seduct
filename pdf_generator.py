@@ -138,3 +138,120 @@ def gerar_pdf_resumo(df_matriculas, df_turmas, df_professores, df_escolas=None):
         pdf.ln()
         
     return bytes(pdf.output())
+
+def gerar_pdf_comparativo(df_turmas, df_alunos_limpo, df_matriculas_final, df_dup_apos=None):
+    pdf = PDFResumo()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    
+    pdf.set_font("helvetica", 'B', 14)
+    pdf.cell(0, 10, "Relatório de Divergências por Duplicidades", ln=1, align='C')
+    pdf.set_font("helvetica", '', 11)
+    pdf.multi_cell(0, 6, "Este relatorio lista as turmas aprovadas no EDUTEN que sofreram baixa ou divergencia na sua contagem de matriculas como resultado das exclusoes geradas pelo tratamento de duplicidades.")
+    pdf.ln(5)
+    
+    import pandas as pd
+    
+    col_ue_tur = 'UNIDADES ESCOLARES' if 'UNIDADES ESCOLARES' in df_turmas.columns else df_turmas.columns[0]
+    col_cod_tur = 'CODIGO' if 'CODIGO' in df_turmas.columns else df_turmas.columns[1]
+    
+    valid_turmas = df_turmas[[col_ue_tur, col_cod_tur]].drop_duplicates()
+    valid_turmas.columns = ['Unidade Escolar', 'Turma']
+    valid_turmas['Unidade Escolar'] = valid_turmas['Unidade Escolar'].astype(str).str.strip()
+    valid_turmas['Turma'] = valid_turmas['Turma'].astype(str).str.strip()
+    
+    col_ue_alu = 'Unidade Escolar' if 'Unidade Escolar' in df_alunos_limpo.columns else df_alunos_limpo.columns[0]
+    col_cod_alu = 'Código da Turma Suap' if 'Código da Turma Suap' in df_alunos_limpo.columns else df_alunos_limpo.columns[1]
+    df_alu = df_alunos_limpo.copy()
+    df_alu['Unidade Escolar'] = df_alu[col_ue_alu].astype(str).str.strip()
+    df_alu['Turma'] = df_alu[col_cod_alu].astype(str).str.strip()
+    antes_gb = df_alu.groupby(['Unidade Escolar', 'Turma']).size().reset_index(name='Total_Antes')
+    
+    col_ue_mat = 'Unidade Escolar' if 'Unidade Escolar' in df_matriculas_final.columns else df_matriculas_final.columns[0]
+    col_cod_mat = 'Código da Turma Suap' if 'Código da Turma Suap' in df_matriculas_final.columns else df_matriculas_final.columns[1]
+    df_mat = df_matriculas_final.copy()
+    df_mat['Unidade Escolar'] = df_mat[col_ue_mat].astype(str).str.strip()
+    df_mat['Turma'] = df_mat[col_cod_mat].astype(str).str.strip()
+    depois_gb = df_mat.groupby(['Unidade Escolar', 'Turma']).size().reset_index(name='Total_Depois')
+    
+    comp_df = pd.merge(valid_turmas, antes_gb, on=['Unidade Escolar', 'Turma'], how='left')
+    comp_df = pd.merge(comp_df, depois_gb, on=['Unidade Escolar', 'Turma'], how='left')
+    
+    comp_df['Total_Antes'] = comp_df['Total_Antes'].fillna(0).astype(int)
+    comp_df['Total_Depois'] = comp_df['Total_Depois'].fillna(0).astype(int)
+    comp_df['Diferenca'] = comp_df['Total_Antes'] - comp_df['Total_Depois']
+    
+    divergentes = comp_df[comp_df['Diferenca'] > 0].copy()
+    divergentes = divergentes.sort_values(by=['Unidade Escolar', 'Turma'])
+    
+    if divergentes.empty:
+        pdf.set_font("helvetica", 'B', 12)
+        pdf.cell(0, 10, "Nao houve divergencia de matriculas (nenhuma exclusao por duplicidade nas turmas do Eduten).", ln=1)
+        return bytes(pdf.output())
+    
+    # Montar Cabeçalho da Tabela
+    pdf.set_font("helvetica", 'B', 9)
+    pdf.cell(90, 8, "Unidade Escolar", border=1)
+    pdf.cell(40, 8, "Turma", border=1, align='C')
+    pdf.cell(20, 8, "Inicial", border=1, align='C')
+    pdf.cell(20, 8, "Final", border=1, align='C')
+    pdf.cell(20, 8, "Excluidos", border=1, align='C')
+    pdf.ln()
+    
+    pdf.set_font("helvetica", '', 8)
+    for _, row in divergentes.iterrows():
+        ue = str(row['Unidade Escolar'])
+        if len(ue) > 42: ue = ue[:39] + "..."
+        
+        pdf.cell(90, 6, ue, border=1)
+        pdf.cell(40, 6, str(row['Turma']), border=1, align='C')
+        pdf.cell(20, 6, str(row['Total_Antes']), border=1, align='C')
+        pdf.cell(20, 6, str(row['Total_Depois']), border=1, align='C')
+        
+        pdf.set_text_color(200, 0, 0)
+        pdf.cell(20, 6, "-" + str(row['Diferenca']), border=1, align='C')
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln()
+
+    # Detalhamento das Duplicadas
+    pdf.ln(10)
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "Detalhamento das Matrículas Duplicadas", ln=1)
+    
+    if df_dup_apos is None or df_dup_apos.empty:
+        pdf.set_font("helvetica", '', 10)
+        pdf.cell(0, 6, "Não há lista de alunos removidos por duplicidade.", ln=1)
+    else:
+        # Tabela Detalhamento
+        pdf.set_font("helvetica", 'B', 8)
+        cols = list(df_dup_apos.columns)
+        col_nome = next((c for c in cols if 'NOME' in c), cols[0])
+        col_mat = next((c for c in cols if 'MATR' in c or 'MATRIC' in c), None)
+        col_cpf = 'CPF' if 'CPF' in cols else next((c for c in cols if 'DOCUMENTO' in c or 'CPF' in c), None)
+        col_ue = next((c for c in cols if 'UNIDADE' in c or 'ESCOLA' in c or 'CAMPUS' in c), cols[2])
+        col_tur = next((c for c in cols if 'TURMA' in c), cols[3])
+
+        pdf.cell(55, 6, "Nome do Aluno", border=1)
+        pdf.cell(20, 6, "Matrícula", border=1, align='C')
+        pdf.cell(25, 6, "CPF", border=1, align='C')
+        pdf.cell(65, 6, "Unidade Escolar", border=1)
+        pdf.cell(30, 6, "Turma", border=1, align='C')
+        pdf.ln()
+
+        pdf.set_font("helvetica", '', 7)
+        for _, row in df_dup_apos.iterrows():
+            nome = str(row[col_nome])[:30] if pd.notnull(row[col_nome]) else ""
+            mat = str(row[col_mat]).replace(".0", "").strip() if col_mat and pd.notnull(row[col_mat]) else "-"
+            mat = mat[:15]
+            cpf = str(row[col_cpf]) if col_cpf and pd.notnull(row[col_cpf]) else ""
+            ue = str(row[col_ue])[:33] if pd.notnull(row[col_ue]) else ""
+            turma_str = str(row[col_tur])[:15] if pd.notnull(row[col_tur]) else ""
+            
+            pdf.cell(55, 6, nome, border=1)
+            pdf.cell(20, 6, mat, border=1, align='C')
+            pdf.cell(25, 6, cpf, border=1, align='C')
+            pdf.cell(65, 6, ue, border=1)
+            pdf.cell(30, 6, turma_str, border=1, align='C')
+            pdf.ln()
+
+    return bytes(pdf.output())
