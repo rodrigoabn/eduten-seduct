@@ -219,3 +219,38 @@ def df_to_excel_bytes(df):
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)
     return output.getvalue()
+
+def obter_registros_novos(df_antes, df_depois):
+    if df_antes is None or df_antes.empty:
+        return df_depois if df_depois is not None else pd.DataFrame()
+    if df_depois is None or df_depois.empty:
+        return pd.DataFrame()
+        
+    df_antes = format_columns(df_antes)
+    df_depois = format_columns(df_depois)
+    
+    # Try to find CPF as primary key (ideal for matriculas)
+    col_cpf_antes = next((c for c in df_antes.columns if 'CPF' in c.upper() or 'DOCUMENTO' in c.upper()), None)
+    col_cpf_depois = next((c for c in df_depois.columns if 'CPF' in c.upper() or 'DOCUMENTO' in c.upper()), None)
+    
+    if col_cpf_antes and col_cpf_depois:
+        antes_cpfs = df_antes[col_cpf_antes].astype(str).str.strip().tolist()
+        df_novos = df_depois[~df_depois[col_cpf_depois].astype(str).str.strip().isin(antes_cpfs)]
+        return df_novos
+    
+    # Check for MATRICULA (useful for professores)
+    col_mat_antes = next((c for c in df_antes.columns if 'MATR' in c.upper()), None)
+    col_mat_depois = next((c for c in df_depois.columns if 'MATR' in c.upper()), None)
+    
+    if col_mat_antes and col_mat_depois:
+        antes_mats = df_antes[col_mat_antes].astype(str).str.strip().tolist()
+        df_novos = df_depois[~df_depois[col_mat_depois].astype(str).str.strip().isin(antes_mats)]
+        return df_novos
+        
+    # Fallback to full row exact match
+    common_cols = list(set(df_antes.columns).intersection(set(df_depois.columns)))
+    if not common_cols:
+        return df_depois
+        
+    df_diff = pd.merge(df_depois, df_antes[common_cols], indicator=True, how='outer').query('_merge=="left_only"').drop('_merge', axis=1)
+    return df_diff

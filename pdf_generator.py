@@ -255,3 +255,90 @@ def gerar_pdf_comparativo(df_turmas, df_alunos_limpo, df_matriculas_final, df_du
             pdf.ln()
 
     return bytes(pdf.output())
+
+def gerar_pdf_resumo_atualizacao(df_novas_matriculas, df_novos_professores):
+    pdf = PDFResumo()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    
+    pdf.set_font("helvetica", 'B', 14)
+    pdf.cell(0, 10, "Resumo Analítico da Atualização", ln=1, align='C')
+    pdf.set_font("helvetica", '', 11)
+    pdf.multi_cell(0, 6, "Este relatório detalha os registros que não existiam na base 'Antes' e que foram inseridos como nova carga no sistema (cadastros novos de alunos ou professores).")
+    pdf.ln(5)
+    
+    # MATRICULAS
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "1. Novas Matrículas", ln=1)
+    
+    if df_novas_matriculas is None or df_novas_matriculas.empty:
+        pdf.set_font("helvetica", '', 10)
+        pdf.cell(0, 6, "Nenhuma nova matrícula detectada na base 'Depois'.", ln=1)
+    else:
+        pdf.set_font("helvetica", '', 10)
+        pdf.cell(0, 6, f"Total de Novas Matrículas: {len(df_novas_matriculas)}", ln=1)
+        pdf.ln(2)
+        
+        pdf.set_font("helvetica", 'B', 8)
+        cols = list(df_novas_matriculas.columns)
+        col_nome = next((c for c in cols if 'NOME' in c.upper() or 'ALUNO' in c.upper()), cols[0])
+        col_ue = next((c for c in cols if 'UNIDADE' in c.upper() or 'ESCOLA' in c.upper()), cols[1] if len(cols)>1 else cols[0])
+        col_tur = next((c for c in cols if 'TURMA' in c.upper()), cols[2] if len(cols)>2 else cols[0])
+        
+        pdf.cell(85, 6, "Nome", border=1)
+        pdf.cell(75, 6, "Unidade Escolar", border=1)
+        pdf.cell(30, 6, "Turma", border=1, align='C')
+        pdf.ln()
+        
+        pdf.set_font("helvetica", '', 7)
+        for _, row in df_novas_matriculas.head(150).iterrows():
+            nome = str(row[col_nome])[:40] if pd.notnull(row[col_nome]) else ""
+            ue = str(row[col_ue])[:38] if pd.notnull(row[col_ue]) else ""
+            tur = str(row[col_tur])[:15] if pd.notnull(row[col_tur]) else ""
+            pdf.cell(85, 6, nome, border=1)
+            pdf.cell(75, 6, ue, border=1)
+            pdf.cell(30, 6, tur, border=1, align='C')
+            pdf.ln()
+            
+        if len(df_novas_matriculas) > 150:
+            pdf.cell(0, 6, f"... e mais {len(df_novas_matriculas) - 150} novos registros ocultos.", ln=1)
+            
+    pdf.ln(5)
+    
+    # PROFESSORES
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "2. Novos Professores", ln=1)
+    
+    if df_novos_professores is None or df_novos_professores.empty:
+        pdf.set_font("helvetica", '', 10)
+        pdf.cell(0, 6, "Nenhum novo professor detectado na base 'Depois'.", ln=1)
+    else:
+        pdf.set_font("helvetica", '', 10)
+        pdf.cell(0, 6, f"Total de Novos Professores: {len(df_novos_professores)}", ln=1)
+        pdf.ln(2)
+        
+        pdf.set_font("helvetica", 'B', 8)
+        cols = list(df_novos_professores.columns)
+        col_nome = next((c for c in cols if 'NOME' in c.upper() or 'PROFESSOR' in c.upper()), cols[0])
+        col_ue = next((c for c in cols if 'UNIDADE' in c.upper() or 'ESCOLA' in c.upper()), cols[1] if len(cols)>1 else cols[0])
+        col_mat = next((c for c in cols if 'MATR' in c.upper()), None)
+
+        pdf.cell(80, 6, "Nome do Professor", border=1)
+        pdf.cell(30, 6, "Matrícula", border=1, align='C')
+        pdf.cell(80, 6, "Unidade Escolar", border=1)
+        pdf.ln()
+        
+        pdf.set_font("helvetica", '', 7)
+        for _, row in df_novos_professores.head(150).iterrows():
+            nome = str(row[col_nome])[:38] if pd.notnull(row[col_nome]) else ""
+            ue = str(row[col_ue])[:38] if pd.notnull(row[col_ue]) else ""
+            mat = str(row[col_mat]).replace(".0", "").strip()[:15] if col_mat and pd.notnull(row[col_mat]) else "-"
+            pdf.cell(80, 6, nome, border=1)
+            pdf.cell(30, 6, mat, border=1, align='C')
+            pdf.cell(80, 6, ue, border=1)
+            pdf.ln()
+            
+        if len(df_novos_professores) > 150:
+            pdf.cell(0, 6, f"... e mais {len(df_novos_professores) - 150} novos registros ocultos.", ln=1)
+            
+    return bytes(pdf.output())
