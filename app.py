@@ -18,10 +18,53 @@ def load_data(file):
     else:
         return pd.read_excel(file)
 
-st.set_page_config(page_title="Gerador Eduten", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Gerador Eduten", layout="wide")
 
-st.title("📊 Gerador de Arquivos para o Eduten")
-st.markdown("Faça o upload de cada arquivo `.xls` / `.xlsx` original correspondente abaixo para gerar as planilhas processadas. Todos os processos são feitos em memória para garantir segurança e performance.")
+st.markdown("""
+    <style>
+    /* Styling buttons to be blue with rounded edges */
+    div.stButton > button:first-child {
+        background-color: #0056b3 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+        padding: 0.5rem 1rem !important;
+        height: auto !important;
+        font-weight: 600 !important;
+    }
+    div.stButton > button:first-child:hover {
+        background-color: #004494 !important;
+        border: none !important;
+        color: white !important;
+    }
+    /* Styling download buttons exactly the same */
+    div.stDownloadButton > button:first-child {
+        background-color: #0056b3 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+    }
+    div.stDownloadButton > button:first-child:hover {
+        background-color: #004494 !important;
+        border: none !important;
+        color: white !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+col_titulo, col_btn = st.columns([8, 2])
+with col_titulo:
+    st.title("Gerador de Arquivos - EDUTEN")
+
+with col_btn:
+    st.markdown("<br>", unsafe_allow_html=True) # Alinhamento espaçado vertical
+    try:
+        with open("documentacao.pdf", "rb") as pdf_file:
+            st.download_button("Documentação", data=pdf_file.read(), file_name="documentacao.pdf", mime="application/pdf", width="stretch")
+    except FileNotFoundError:
+        st.download_button("Documentação", data=b"", file_name="documentacao.pdf", mime="application/pdf", disabled=True, width="stretch", help="O arquivo documentacao.pdf não está na pasta.")
+
+st.markdown("Faça o upload de cada arquivo original correspondente abaixo para gerar as planilhas processadas. Todos os processos são feitos em memória para garantir segurança e performance.")
 
 with st.expander("📁 Upload de Arquivos de Entrada", expanded=True):
     col1, col2 = st.columns(2)
@@ -36,7 +79,7 @@ with st.expander("📁 Upload de Arquivos de Entrada", expanded=True):
         file_servidores = st.file_uploader("5. servidores", type=["xls", "xlsx", "csv"])
         file_edu = st.file_uploader("6. @edu", type=["xls", "xlsx", "csv"])
 
-if st.button("🚀 Processar Dados", type="primary", use_container_width=True):
+if st.button("Processar Dados", width='stretch'):
     faltando = []
     if file_alunos is None: faltando.append("alunos.xls")
     if file_turmas is None: faltando.append("turmas.xls")
@@ -46,9 +89,9 @@ if st.button("🚀 Processar Dados", type="primary", use_container_width=True):
     if file_edu is None: faltando.append("@edu.xls")
     
     if len(faltando) > 0:
-        st.error(f"⚠️ Por favor, envie os seguintes arquivos para continuar: {', '.join(faltando)}")
+        st.error(f"Por favor, envie os seguintes arquivos para continuar: {', '.join(faltando)}")
     else:
-        with st.spinner("⏳ Lendo os arquivos e processando os dados... Isto pode levar alguns segundos."):
+        with st.spinner("Lendo os arquivos e processando os dados... Isto pode levar alguns segundos."):
             try:
                 # Reading input DataFrames dynamically (CSV or XLS/XLSX)
                 df_alunos_raw = load_data(file_alunos)
@@ -96,37 +139,44 @@ if st.button("🚀 Processar Dados", type="primary", use_container_width=True):
                 st.session_state['processed_success'] = True
 
             except Exception as e:
-                st.error(f"❌ Ocorreu um erro no processamento: {str(e)}")
+                st.error(f"Ocorreu um erro no processamento: {str(e)}")
                 st.session_state['processed_success'] = False
 
 if st.session_state.get('processed_success', False):
-    st.success("✅ Relatórios gerados com sucesso!")
+    st.success("Relatórios gerados com sucesso!")
     st.markdown("---")
-    st.subheader("📥 Download dos Arquivos Processados")
+    st.subheader("Download dos Arquivos Processados")
     
     data = st.session_state['processed_data']
     
+    # Resumo Analítico isolado no topo
     try:
         pdf_bytes = gerar_pdf_resumo(data['matriculas'], data['turmas'], data['professores'], data.get('escolas_raw'))
-        st.download_button("📄 Baixar Resumo Analítico (PDF)", data=pdf_bytes, file_name="Resumo_Analitico_EDUTEN.pdf", mime="application/pdf", type="primary", use_container_width=True)
+        st.download_button("Baixar Resumo Analítico (PDF)", data=pdf_bytes, file_name="Resumo_Analitico_EDUTEN.pdf", mime="application/pdf", width='stretch')
     except Exception as e:
         st.warning(f"Não foi possível gerar o PDF de resumo: {e}")
         
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # Organização baseada no fluxo (imagem 2)
     c1, c2, c3 = st.columns(3)
     
     with c1:
-        st.download_button("1. Duplicidades Antes ETL", data=df_to_excel_bytes(data['dup_antes']), file_name="duplicidades_antes_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.download_button("2. Alunos Após ETL", data=df_to_excel_bytes(data['alunos_limpo']), file_name="alunos_apos_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.download_button("3. Duplicidades Após ETL", data=df_to_excel_bytes(data['dup_apos']), file_name="duplicidades_apos_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.markdown("**Tratamento de Duplicidades (ETL)**")
+        st.download_button("Duplicidades Antes ETL", data=df_to_excel_bytes(data['dup_antes']), file_name="duplicidades_antes_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Duplicidades Após ETL", data=df_to_excel_bytes(data['dup_apos']), file_name="duplicidades_apos_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         
     with c2:
-        st.download_button("4. Matrículas EDUTEN", data=df_to_excel_bytes(data['matriculas']), file_name="matriculas_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type='primary')
-        st.download_button("5. Turmas EDUTEN", data=df_to_excel_bytes(data['turmas']), file_name="turmas_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type='primary')
+        st.markdown("**Arquivos de Envio ao EDUTEN**")
+        st.download_button("Relação Final de Matrículas", data=df_to_excel_bytes(data['matriculas']), file_name="matriculas_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Professores Participantes", data=df_to_excel_bytes(data['professores']), file_name="professores_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         
     with c3:
-        st.download_button("6. Diários EDUTEN", data=df_to_excel_bytes(data['diarios']), file_name="diarios_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type='primary')
-        st.download_button("7. Professores EDUTEN", data=df_to_excel_bytes(data['professores']), file_name="professores_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type='primary')
-        
-    # We remove the balloons so they only show once, or we just leave them out to prevent annoyance on rerenders.
+        st.markdown("**Materiais de Validação**")
+        st.download_button("Turmas para Conferência dos Dados", data=df_to_excel_bytes(data['turmas']), file_name="turmas_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Arquivos de Diários", data=df_to_excel_bytes(data['diarios']), file_name="diarios_EDUTEN.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Alunos Após ETL (Base Limpa)", data=df_to_excel_bytes(data['alunos_limpo']), file_name="alunos_apos_ETL.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+# Rodapé do Projeto
+st.markdown("---")
+st.markdown("<p style='text-align: center; color: gray;'>Desenvolvido pela Gerência de Administração de Sistemas em TI - Versão 1.1</p>", unsafe_allow_html=True)
