@@ -155,7 +155,7 @@ if st.session_state.get('processed_success', False):
             
     with col_pdf2:
         try:
-            st.download_button("Baixar Relatório de Divergências por Duplicidades", data=st.session_state['pdf_comparativo_bytes'], file_name="Comparativo_Matriculas_EDUTEN.pdf", mime="application/pdf", width='stretch')
+            st.download_button("Baixar Relatório de Divergências por Duplicidades", data=st.session_state['pdf_comparativo_bytes'], file_name="Relatório_de_Duplicidades_EDUTEN.pdf", mime="application/pdf", width='stretch')
         except Exception as e:
             st.warning(f"Não foi possível gerar o PDF comparativo: {e}")
         
