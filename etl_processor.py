@@ -6,6 +6,27 @@ def format_columns(df):
     df.columns = [str(col).strip() for col in df.columns]
     return df
 
+def limpar_id(series):
+    if series is None: return pd.Series(dtype=str)
+    import re
+    
+    def _clean(x):
+        if pd.isna(x) or str(x).lower() == 'nan' or str(x).strip() == '':
+            return None
+        try:
+            # Tenta converter para float e formatar sem decimais para evitar notação científica
+            val = float(x)
+            s = '{:.0f}'.format(val)
+        except:
+            # Se tiver caracteres não numéricos (como traços no CPF), pega como string
+            s = str(x)
+        
+        # Remove qualquer caractere que não seja número (pontos, traços, etc)
+        s = re.sub(r'\D', '', s)
+        return s if s != '' else None
+            
+    return series.apply(_clean)
+
 def get_duplicates_cpf(df):
     df = format_columns(df)
     cols_upper = {col: col.upper() for col in df.columns}
@@ -229,25 +250,36 @@ def obter_registros_novos(df_antes, df_depois):
     df_antes = format_columns(df_antes)
     df_depois = format_columns(df_depois)
     
-    # Try to find CPF as primary key (ideal for matriculas)
-    col_cpf_antes = next((c for c in df_antes.columns if 'CPF' in c.upper() or 'DOCUMENTO' in c.upper()), None)
-    col_cpf_depois = next((c for c in df_depois.columns if 'CPF' in c.upper() or 'DOCUMENTO' in c.upper()), None)
+    # helper internal to apply cleaning and check validity
+    def get_valid_keys(df, keywords):
+        col = next((c for c in df.columns if any(k in c.upper() for k in keywords)), None)
+        if col:
+            keys = limpar_id(df[col]).dropna()
+            if not keys.empty:
+                return col, keys.unique().tolist()
+        return None, []
+
+    # 1. Try CPF/DOCUMENTO
+    col_antes, antes_keys = get_valid_keys(df_antes, ['CPF', 'DOCUMENTO'])
+    col_depois = next((c for c in df_depois.columns if any(k in c.upper() for k in ['CPF', 'DOCUMENTO'])), None)
     
-    if col_cpf_antes and col_cpf_depois:
-        antes_cpfs = df_antes[col_cpf_antes].astype(str).str.strip().tolist()
-        df_novos = df_depois[~df_depois[col_cpf_depois].astype(str).str.strip().isin(antes_cpfs)]
-        return df_novos
-    
-    # Check for MATRICULA (useful for professores)
-    col_mat_antes = next((c for c in df_antes.columns if 'MATR' in c.upper()), None)
-    col_mat_depois = next((c for c in df_depois.columns if 'MATR' in c.upper()), None)
-    
-    if col_mat_antes and col_mat_depois:
-        antes_mats = df_antes[col_mat_antes].astype(str).str.strip().tolist()
-        df_novos = df_depois[~df_depois[col_mat_depois].astype(str).str.strip().isin(antes_mats)]
+    if col_antes and col_depois and antes_keys:
+        df_depois_temp = df_depois.copy()
+        df_depois_temp['ID_LIMPO'] = limpar_id(df_depois_temp[col_depois])
+        df_novos = df_depois_temp[~df_depois_temp['ID_LIMPO'].isin(antes_keys)].drop(columns=['ID_LIMPO'])
         return df_novos
         
-    # Fallback to full row exact match
+    # 2. Try MATRICULA
+    col_antes, antes_keys = get_valid_keys(df_antes, ['MATR'])
+    col_depois = next((c for c in df_depois.columns if any(k in c.upper() for k in ['MATR'])), None)
+    
+    if col_antes and col_depois and antes_keys:
+        df_depois_temp = df_depois.copy()
+        df_depois_temp['ID_LIMPO'] = limpar_id(df_depois_temp[col_depois])
+        df_novos = df_depois_temp[~df_depois_temp['ID_LIMPO'].isin(antes_keys)].drop(columns=['ID_LIMPO'])
+        return df_novos
+        
+    # 3. Fallback to full row exact match
     common_cols = list(set(df_antes.columns).intersection(set(df_depois.columns)))
     if not common_cols:
         return df_depois
