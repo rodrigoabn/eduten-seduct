@@ -3,7 +3,8 @@ import pandas as pd
 from etl_processor import (
     get_duplicates_cpf, etl_alunos, gerar_matriculas_eduten, 
     remover_duplicidades, etl_turmas, etl_diarios, 
-    cruzar_diarios_servidores, df_to_excel_bytes, obter_registros_novos
+    cruzar_diarios_servidores, df_to_excel_bytes, obter_registros_novos,
+    remover_professores_blacklist
 )
 from pdf_generator import gerar_pdf_resumo, gerar_pdf_comparativo, gerar_pdf_resumo_atualizacao
 
@@ -78,6 +79,7 @@ with st.expander("📁 Upload de Arquivos de Entrada", expanded=True):
         file_escolas = st.file_uploader("4. unidades_participantes", type=["xls", "xlsx", "csv"])
         file_servidores = st.file_uploader("5. servidores", type=["xls", "xlsx", "csv"])
         file_edu = st.file_uploader("6. @edu", type=["xls", "xlsx", "csv"])
+        file_complementador = st.file_uploader("7. complementador (exclusão facultativa)", type=["xls", "xlsx"])
 
 if st.button("Processar Dados", width='stretch'):
     faltando = []
@@ -123,7 +125,14 @@ if st.button("Processar Dados", width='stretch'):
                 df_diarios_final = etl_diarios(df_diarios_raw, df_escolas_raw)
                 
                 # Flow 8: Professores
-                df_professores_final = cruzar_diarios_servidores(df_diarios_final, df_servidores_raw, df_edu_raw)
+                df_professores_base = cruzar_diarios_servidores(df_diarios_final, df_servidores_raw, df_edu_raw)
+                
+                # Exclusão via Complementador (Blacklist)
+                if file_complementador:
+                    df_comp_raw = load_data(file_complementador)
+                    df_professores_final = remover_professores_blacklist(df_professores_base, df_comp_raw)
+                else:
+                    df_professores_final = df_professores_base
                 
                 # Convert all DFs to strictly Bytes during the loading spin to avoid Streamlit timeout on download click
                 st.session_state['processed_bytes'] = {

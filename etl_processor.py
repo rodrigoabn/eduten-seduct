@@ -286,3 +286,27 @@ def obter_registros_novos(df_antes, df_depois):
         
     df_diff = pd.merge(df_depois, df_antes[common_cols], indicator=True, how='outer').query('_merge=="left_only"').drop('_merge', axis=1)
     return df_diff
+
+def remover_professores_blacklist(df_professores, df_complementador):
+    if df_complementador is None or df_complementador.empty:
+        return df_professores
+    
+    # Identifica a coluna de matrícula no complementador
+    col_mat_comp = next((c for c in df_complementador.columns if 'MATR' in c.upper()), None)
+    if not col_mat_comp:
+        return df_professores
+        
+    # Limpa as matrículas para comparação segura
+    lista_excluir = limpar_id(df_complementador[col_mat_comp]).dropna().unique().tolist()
+    
+    # Identifica a matrícula no DF principal de professores
+    col_mat_prof = next((c for c in df_professores.columns if 'MATR' in c.upper()), 'Matrícula')
+    
+    # Filtra as matrículas
+    df_filtrado = df_professores.copy()
+    df_filtrado['ID_TEMP_LIMPO'] = limpar_id(df_filtrado[col_mat_prof])
+    
+    # Remove as matrículas que constam na lista de exclusão
+    df_filtrado = df_filtrado[~df_filtrado['ID_TEMP_LIMPO'].isin(lista_excluir)].drop(columns=['ID_TEMP_LIMPO'])
+    
+    return df_filtrado
