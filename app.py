@@ -79,7 +79,7 @@ with st.expander("📁 Upload de Arquivos de Entrada", expanded=True):
         file_escolas = st.file_uploader("4. unidades_participantes", type=["xls", "xlsx", "csv"])
         file_servidores = st.file_uploader("5. servidores", type=["xls", "xlsx", "csv"])
         file_edu = st.file_uploader("6. @edu", type=["xls", "xlsx", "csv"])
-        file_complementador = st.file_uploader("7. complementador (exclusão facultativa)", type=["xls", "xlsx"])
+        file_complementador = st.file_uploader("7. prof. complementador + ed. fisica em ed infantil / anos iniciais (exclusão facultativa)", type=["xls", "xlsx"])
 
 if st.button("Processar Dados", width='stretch'):
     faltando = []
