@@ -145,9 +145,9 @@ def gerar_pdf_comparativo(df_turmas, df_alunos_limpo, df_matriculas_final, df_du
     pdf.set_font("helvetica", size=12)
     
     pdf.set_font("helvetica", 'B', 14)
-    pdf.cell(0, 10, "Relatório de Divergências por Duplicidades", ln=1, align='C')
+    pdf.cell(0, 10, "Relatório Informativo de Divergências por Duplicidades", ln=1, align='C')
     pdf.set_font("helvetica", '', 11)
-    pdf.multi_cell(0, 6, "Este relatorio lista as turmas aprovadas no EDUTEN que sofreram baixa ou divergencia na sua contagem de matriculas como resultado das exclusoes geradas pelo tratamento de duplicidades.")
+    pdf.multi_cell(0, 6, "Este relatorio lista as turmas aprovadas no EDUTEN que sofreram baixa na sua contagem de matriculas como resultado das exclusoes geradas pelo tratamento de duplicidades.")
     pdf.ln(5)
     
     import pandas as pd
@@ -216,7 +216,8 @@ def gerar_pdf_comparativo(df_turmas, df_alunos_limpo, df_matriculas_final, df_du
     # Detalhamento das Duplicadas
     pdf.ln(10)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "Detalhamento das Matrículas Duplicadas", ln=1)
+    pdf.cell(0, 8, "Matrículas Excluídas por Divergências ou Duplicidade", ln=1)
+    pdf.cell(0, 6, "Esses dados foram encaminhados para a Diretoria de Supervisão Escolar para verificação.", ln=1)
     
     if df_dup_apos is None or df_dup_apos.empty:
         pdf.set_font("helvetica", '', 10)
